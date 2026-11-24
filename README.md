@@ -1,234 +1,216 @@
-<p align="center">
-  <img src="./Frontend/public/bg.png" width="200" />
-</p>
+# Clinexa
 
-# 🏥 Clinexa — AI-Powered Primary Healthcare Decision Support System
-**End-to-End Clinical Intelligence System for Disease Prediction, Explainable AI & Specialist Escalation**
+Clinexa is a role-based healthcare decision-support application for primary healthcare workers. It combines patient and consultation management with a machine-learning symptom prediction service, explainable AI output, optional Gemini-generated clinical context, and PDF reports.
 
-## 📌 Overview  
-**Clinexa** is a diagnostic empowerment platform built for primary healthcare workers in underserved regions. Traditionally, frontline workers face challenges in accurate diagnosis and timely referral. Clinexa solves this by combining Machine Learning precision with Explainable AI (LIME) and LLM-powered clinical interpretations to provide reliable decision support at the point of care.
+> **Clinical safety:** Clinexa provides decision support only. Its predictions and generated text are not a diagnosis and must not replace a qualified clinician's judgement.
 
----
+## What the application does
 
-## 🎯 Problem Statement  
-Frontline healthcare workers often serve as the first point of contact in rural areas but may lack the specialized training needed for complex diagnosis. Manual symptom analysis is prone to error, and diagnostic reports often lack the transparency needed for clinical trust. **Clinexa** automates the prediction pipeline while providing clear, evidence-backed explanations for every clinical suggestion.
+- **Admin:** creates and manages healthcare workers and doctors.
+- **Healthcare worker (PHW):** records patients, starts consultations, reviews analysis, and can refer a case to a doctor.
+- **Doctor:** reviews assigned consultations and submits a second opinion.
+- **ML service:** predicts likely conditions from recognized symptoms and returns confidence, top predictions, and LIME feature explanations.
+- **Graph service:** coordinates the ML result, Gemini-generated summary, and PDF report.
 
----
+The dashboard interface includes English, Hindi, and Marathi translations. The current PDF template has fixed English labels; localized PDF output may need additional implementation.
 
-## 🎯 Goal  
-Build a robust healthcare ecosystem where the **Clinexa Core System** orchestrates specialized ML and LLM modules to perform automated disease assessment, generate multilingual reports, and manage specialist consultations through a secure, role-based dashboard.
+## Project workflow
 
----
+### Patient assessment and AI analysis
 
-## 🏗️ System Flow
-<p align="center">
-  <img src="./Frontend/public/flow-diagram.png" alt="Clinexa Flow Diagram" />
-</p>
+![Clinexa proposed solution workflow](./Frontend/public/clinexa-proposed-workflow.png)
 
----
+1. A healthcare worker enters patient details and reported symptoms.
+2. The ML service matches symptoms to its trained feature set and runs the Random Forest model.
+3. The service returns a primary prediction, top predictions, confidence, and a LIME explanation of influential features. Unknown symptoms are reported separately.
+4. The Graph service sends the structured ML result to Google Gemini for a clinical-context summary, recommendations, and a severity assessment.
+5. The Graph service combines the results into a PDF report and returns the analysis and PDF to the frontend.
+6. The healthcare worker reviews the result and decides whether to continue care or refer the case. AI output should always be reviewed by a qualified professional.
 
-## ✨ Key Features
+### Role and case-management flow
 
-### 🔹 1. Intelligent Disease Prediction
-- Classifies 40+ common and critical diseases using a **Random Forest Classifier**.
-- Achieves high accuracy by processing multi-dimensional symptom clusters.
-- Provides a "Severity Score" (1-7) for immediate triage prioritization.
+![Clinexa role and case-management workflow](./Frontend/public/clinexa-role-workflow.png)
 
-### 🔹 2. Explainable AI (LIME Integration)
-- Breaks the "Black Box" of AI by showing exactly which symptoms influenced the diagnosis.
-- Displays impact scores (Supports vs. Against) for every symptom reported.
-- Builds clinical trust through transparency and evidence-based reasoning.
+The admin portal manages doctor and healthcare-worker accounts. Healthcare workers manage patient consultations; cases can be escalated for a doctor's review and second opinion before being resolved.
 
-### 🔹 3. LLM-Powered Clinical Insights
-- Uses **Google Gemini API** via a LangGraph pipeline to generate natural language summaries.
-- Provides interpreted next steps, referral recommendations, and precautions.
-- Contextualizes raw ML scores into actionable clinical advice.
+## How the services communicate
 
-### 🔹 4. Multilingual Report Generation
-- Instantly generates professional PDF reports using **ReportLab**.
-- Native support for **English, Hindi, Marathi, etc.** to serve diverse patient populations.
-- Includes data visualizations of symptom impact and severity mapping.
+```mermaid
+flowchart LR
+    Browser[React + Vite frontend :5173]
+    API[Express backend :5000]
+    DB[(MongoDB)]
+    ML[FastAPI ML service :8001]
+    Graph[FastAPI Graph service :8000]
+    Gemini[Google Gemini API]
+    PDF[ReportLab PDF]
 
-### 🔹 5. Role-Based Data Silos
-- **Admin**: Manages user ecosystems and monitors regional health trends.
-- **Worker**: Registers patients and conducts the primary AI-assisted analysis.
-- **Doctor**: Reviews escalated cases for expert second opinions and validation.
-
----
-
-## 🧠 Core System Architecture
-
-### **1. Master Orchestration Module**
-```yaml
-Purpose: Coordinate the flow from symptom input to final report
-Tools:
-  - 🧩 Node.js/Express (System Core)
-  - 🔐 JWT (Role-Based Access)
-  - 🔄 LangGraph (Workflow Orchestration)
-Output:
-  - Unified Dashboard Experience
-  - Case Escalation Workflow
-  - Secure Patient Records
+    Browser -->|login, users, patients, consultations| API
+    API <--> DB
+    Browser -->|fetch symptom list| ML
+    Browser -->|full analysis request| Graph
+    Graph -->|POST /predict| ML
+    Graph --> Gemini
+    Graph --> PDF
+    Graph -->|ML + LLM results + base64 PDF| Browser
 ```
 
-### **2. Clinical ML Module**
-```yaml
-Purpose: High-precision disease classification
-Tools:
-  - 🌲 Random Forest Algorithm (Scikit-Learn)
-  - 🔬 LIME (Explainable AI Engine)
-  - ⚡ FastAPI (ML Service Layer)
-Output:
-  - Disease Probabilities
-  - Feature Importance Scores
-  - Severity Assessments
+The frontend calls the ML service directly to fetch available symptoms. Full analysis is sent to the Graph service, which calls the ML prediction endpoint and then Gemini before generating the report. The Express backend handles authentication and application data stored in MongoDB.
+
+## Requirements
+
+- Node.js and npm
+- Python 3.11 recommended
+- MongoDB running locally, or a MongoDB Atlas connection string
+- A Google Gemini API key for the LLM analysis step
+
+The ML model artifacts are expected under `ML_Model/model/`:
+
+```text
+disease_model.pkl
+label_encoder.pkl
+symptom_columns.pkl
+X_train.pkl
 ```
 
-### **3. Medical Insight Module (LLM)**
-```yaml
-Purpose: Interpret raw data into clinical narratives
-Tools:
-  - 💎 Google Gemini API
-  - 🧠 LangGraph (Reasoning Pipeline)
-  - 📄 ReportLab (PDF Synthesis)
-Output:
-  - Diagnosis Summaries
-  - Precise Precautions
-  - Referral Recommendations
+## Local setup (Windows PowerShell)
+
+Run commands from the project root unless a step says otherwise. Keep each service running in its own terminal.
+
+### 1. Configure MongoDB and the backend
+
+Start your local MongoDB service, or prepare a MongoDB Atlas connection string. Then:
+
+```powershell
+cd Backend
+Copy-Item .env.example .env
 ```
 
----
+Edit `Backend\.env` and set at least:
 
-## 🛠️ Tech Stack
-
-<table align="center">
-<tr>
-<th>Category</th>
-<th>Technology</th>
-<th>Purpose</th>
-</tr>
-
-<!-- Frontend Section -->
-<tr>
-<td rowspan="3">🎨 <strong>Frontend</strong></td>
-<td><img src="https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React"/></td>
-<td>Responsive Dashboard UI</td>
-</tr>
-
-<tr>
-<td><img src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite"/></td>
-<td>Modern Frontend Tooling</td>
-</tr>
-
-<tr>
-<td><img src="https://img.shields.io/badge/TailwindCSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white" alt="TailwindCSS"/></td>
-<td>Premium Aesthetic Styling</td>
-</tr>
-
-<!-- Backend Section -->
-<tr>
-<td rowspan="2">⚡ <strong>Backend</strong></td>
-<td><img src="https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js"/></td>
-<td>Primary API & Business Logic</td>
-</tr>
-
-<tr>
-<td><img src="https://img.shields.io/badge/Express-000000?style=flat-square&logo=express&logoColor=white" alt="Express"/></td>
-<td>Middleware & Routing</td>
-</tr>
-
-<!-- ML & AI Section -->
-<tr>
-<td rowspan="3">🤖 <strong>ML & AI</strong></td>
-<td><img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI"/></td>
-<td>ML Model Deployment</td>
-</tr>
-
-<tr>
-<td><img src="https://img.shields.io/badge/Gemini_API-8E75B2?style=flat-square&logo=google&logoColor=white" alt="Gemini"/></td>
-<td>Medical Interpretation (LLM)</td>
-</tr>
-
-<tr>
-<td><img src="https://img.shields.io/badge/LangGraph-1C3C3C?style=flat-square&logo=langchain&logoColor=white" alt="LangGraph"/></td>
-<td>AI Workflow Orchestration</td>
-</tr>
-
-<!-- Database Section -->
-<tr>
-<td rowspan="1">💾 <strong>Database</strong></td>
-<td><img src="https://img.shields.io/badge/MongoDB-47A248?style=flat-square&logo=mongodb&logoColor=white" alt="MongoDB"/></td>
-<td>Patient & User Data Storage</td>
-</tr>
-
-</table>
-
----
-
-# 📚 Installation & Setup
-
-### 1. Clone & Navigate
-```bash
-git clone <repository-url>
-cd Clinexa
+```env
+PORT=5000
+DB_URL=mongodb://127.0.0.1:27017/clinexa
+JWT_SECRET=<a-long-random-secret>
+JWT_EXPIRY=1d
+NODE_ENV=Development
 ```
 
-### 2. Setup Python Environment
+For Atlas, replace `DB_URL` with your Atlas URI. `OTPEMAIL` and `OTPPASSWORD` are needed only for email/OTP functionality. The `CLOUDINARY_*` values are needed for features that upload files or reports. Do not commit `.env` files or put real credentials in this README.
 
-**macOS/Linux:**
-```bash
-cd graph
-python3 -m venv .venv
-source .venv/bin/activate
-../
+Install and run the backend:
+
+```powershell
+npm ci
+npm run dev
 ```
 
-**Windows (PowerShell):**
+The backend listens on `http://127.0.0.1:5000`. It must connect to MongoDB before it starts accepting requests.
+
+### 2. Configure and install Python services
+
+Open another terminal at the project root:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r graph\requirements.txt
+```
+
+The Graph requirements file includes the dependencies used by both Python services. If PowerShell blocks virtual-environment activation, run this in that terminal and try activation again:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+### 3. Configure the Graph / Gemini service
+
+From the project root, open another terminal:
+
+```powershell
+Copy-Item graph\.env.example graph\.env
+```
+
+Edit `graph\.env`:
+
+```env
+GEMINI_API_KEY=<your-Gemini-API-key>
+MODEL_NAME=gemini-3.8-flash
+ML_API_URL=http://127.0.0.1:8001
+```
+
+The Graph API can start without a Gemini key, but full analysis will fail until a valid key and available model are configured. Provider rate limits or temporary outages can also interrupt Gemini requests.
+
+### 4. Start the ML service
+
+Open a new terminal at the project root:
+
+```powershell
+cd ML_Model
+..\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8001
+```
+
+Alternatively, activate `.venv` first and run:
+
+```powershell
+python -m uvicorn app:app --host 127.0.0.1 --port 8001
+```
+
+### 5. Start the Graph service
+
+Open a new terminal at the project root:
+
 ```powershell
 cd graph
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-../
+..\.venv\Scripts\python.exe -m uvicorn server:app --host 127.0.0.1 --port 8000
 ```
 
-### 3. Initialize Backend
-```bash
-cd Backend
-npm install
-# Copy .env.example to .env and fill in your keys:
-# DB_URL, JWT_SECRET, JWT_EXPIRY, OTPEMAIL, OTPPASSWORD,
-# CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
-cp .env.example .env 
-npm run dev
+If the virtual environment is activated in that terminal, run:
+
+```powershell
+python -m uvicorn server:app --host 127.0.0.1 --port 8000
 ```
 
-### 4. Initialize Frontend
-```bash
-cd ../Frontend
-npm install
-cp .env.example .env
-npm run dev
+### 6. Configure and start the frontend
+
+Open a new terminal at the project root:
+
+```powershell
+cd Frontend
+Copy-Item .env.example .env
+npm ci
+npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
-### 5. ML Service Setup
-```bash
-cd ../graph
-pip install -r requirements.txt
-python server.py
-```
+Open **http://127.0.0.1:5173**. The first admin account can be registered through the app's registration page; the admin can then add worker and doctor accounts.
 
----
+## Service URLs and quick checks
 
-## 📊 Dataset & Deployment
-- **Dataset**: [Kaggle Disease-Symptom Dataset](https://www.kaggle.com/datasets/kaushil268/disease-prediction-using-machine-learning)
-- **Deployed Model**: [Hugging Face Space API](https://dashayush-clinexa-api.hf.space)
+| Service | URL | Purpose |
+|---|---|---|
+| Frontend | `http://127.0.0.1:5173` | Clinexa web application |
+| Express backend | `http://127.0.0.1:5000` | Authentication and application APIs |
+| ML API | `http://127.0.0.1:8001` | Symptoms and disease prediction |
+| Graph API | `http://127.0.0.1:8000` | End-to-end analysis and PDF generation |
 
-## 🎬 How It Works
-1. **Intake**: Worker enters patient symptoms into the React dashboard.
-2. **Analysis**: The FastAPI ML module runs a Random Forest check and LIME explanation.
-3. **Interpretation**: The LangGraph module uses Gemini to explain the findings in plain language.
-4. **Reporting**: ReportLab synthesizes a multilingual PDF for the patient.
-5. **Review**: Complex cases are flagged for Doctor review via the secure portal.
+FastAPI documentation is available at `http://127.0.0.1:8001/docs` and `http://127.0.0.1:8000/docs`.
 
----
-<p align="center"><b>Built by Garv-div • Empowering Frontline Healthcare</b></p>
+## Common startup issues
+
+- **MongoDB URI or connection error:** check that `Backend\.env` has a valid `DB_URL` beginning with `mongodb://` or `mongodb+srv://`, and that the database is reachable.
+- **401 Unauthorized:** sign in with the correct role. Protected API endpoints require the login token; a stored user record alone does not authenticate requests.
+- **Gemini key/model error:** verify `GEMINI_API_KEY` and `MODEL_NAME` in `graph\.env`. A provider `503` can be temporary; retry later.
+- **ML model artifact missing:** verify the four `.pkl` files listed above are in `ML_Model\model\`.
+- **Port already in use:** stop the process using the port or choose another port and update the corresponding frontend environment URL and backend CORS origin.
+- **Scikit-learn version warning:** the model was serialized with a particular scikit-learn version. A version mismatch may warn during loading; use the training version when available.
+
+## Dataset and implementation notes
+
+- Dataset reference: [Disease Prediction using Machine Learning (Kaggle)](https://www.kaggle.com/datasets/kaushil268/disease-prediction-using-machine-learning)
+- ML API source: `ML_Model/`
+- Graph orchestration, Gemini integration, and PDF generation: `graph/`
+- Express API and MongoDB models: `Backend/`
+- React dashboard: `Frontend/`
+
+Predictions and generated recommendations are informational decision support, not medical advice. Confirm findings with a qualified healthcare professional.
